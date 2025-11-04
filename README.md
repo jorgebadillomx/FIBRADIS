@@ -66,3 +66,21 @@ La API inicia por defecto en `http://localhost:5000`.
 * **Seguridad y límites**: rate limit de 5 cargas por hora por usuario, auditoría con `fileHash` y `userId`.
 * **Observabilidad**: logs estructurados (`RequestId`, `FileName`, `UserId`, `Imported`) y métricas de latencia/errores con alertas por ratio de fallos.
 * **Cobertura de pruebas**: incluye casos felices (CSV/XLSX), archivos sin filas válidas, parser con issues, reemplazo atómico, encolado de job e idempotencia por `fileHash`.
+
+### Job Hangfire `PortfolioRecalcJob`
+
+* **Ubicación**: `FIBRADIS.Application/Jobs/PortfolioRecalcJob.cs`.
+* **Cola**: `recalc`, invocado mediante Hangfire con `AutomaticRetry` exponencial (2s-32s) hasta 5 intentos.
+* **Disparadores**: cargas de portafolio (`PortfolioReplaceService`), cambios de precios, distribuciones o KPIs.
+* **Entradas**: `PortfolioRecalcJobInput` (`UserId`, `Reason=upload|price|kpi|distribution`, `RequestedAt`).
+* **Flujo**:
+  1. Registra `JobRunId`, `UserId`, `Reason` y fecha (`ExecutionDate`) en tabla de auditoría.
+  2. Aplica idempotencia diaria por `(UserId, Reason)` salvo para `Reason=upload`.
+  3. Carga posiciones actuales, precios (`ISecurityCatalog`), distribuciones (`IDistributionReader`), valuaciones históricas y flujos de efectivo.
+  4. Calcula métricas instantáneas (`invested`, `value`, `pnl`, `yieldTTM`, `yieldForward`) y rendimientos TWR/MWR (incluye anualización cuando hay >365 días).
+  5. Persiste métricas actuales e historial (`PortfolioMetricsHistory`) y marca el `JobRun` como `Success`.
+  6. Emite logs estructurados y métricas (`jobs_recalc_total`, `jobs_recalc_failed_total`, `jobs_recalc_duration_ms_p95`, `jobs_recalc_positions_total`, `jobs_recalc_yield_avg`).
+* **Idempotencia**: ignora ejecuciones duplicadas por día y razón (excepto `upload`).
+* **Resiliencia**: retries automáticos, clasificación de errores, registro en DLQ (`PortfolioJobDeadLetterRecord`).
+* **Auditoría**: inserta registros en `Jobs/JobRuns` y `DeadLetters` con `JobRunId`, `Reason`, métricas y stacktrace.
+* **Cobertura de pruebas**: unitarias (casos exitosos, idempotencia, fallos transitorios, DLQ, cálculos TWR/MWR) e integrales (flujo upload→recalc, métricas persistidas y auditoría).

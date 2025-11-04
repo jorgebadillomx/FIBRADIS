@@ -44,6 +44,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<RequestMetricsCollector>();
 builder.Services.AddSingleton<UploadMetricsCollector>();
+builder.Services.AddSingleton<IPortfolioRecalcMetricsCollector, PortfolioRecalcMetricsCollector>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<ICorrelationIdAccessor, HttpContextCorrelationIdAccessor>();
 builder.Services.AddSingleton<IPortfolioFileParser, PortfolioFileParser>();

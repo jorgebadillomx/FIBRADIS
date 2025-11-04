@@ -78,7 +78,7 @@ public sealed class PortfolioReplaceService : IPortfolioReplaceService
 
         var snapshot = BuildSnapshot(materializedPositions, priceMap, yieldMap);
 
-        _jobScheduler.EnqueuePortfolioRecalc(userId, UploadReason);
+        _jobScheduler.EnqueuePortfolioRecalc(userId, UploadReason, startedAt);
 
         stopwatch.Stop();
 
