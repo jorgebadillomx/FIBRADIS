@@ -81,7 +81,7 @@ public sealed class PortfolioReplaceServiceTests
             .ReturnsAsync((0.04m, 0.05m));
 
         var jobScheduler = new Mock<IJobScheduler>(MockBehavior.Strict);
-        jobScheduler.Setup(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload"));
+        jobScheduler.Setup(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload", It.IsAny<DateTimeOffset>()));
 
         var service = CreateService(repository, securityCatalog, distributionReader, jobScheduler);
 
@@ -97,7 +97,8 @@ public sealed class PortfolioReplaceServiceTests
                           trades.Any(trade => trade.ticker == "FIBRAMQ12" && trade.qty == 5m && trade.avgCost == 200m)),
             It.IsAny<CancellationToken>()), Times.Once);
 
-        jobScheduler.Verify(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload"), Times.Once);
+        var expectedTimestamp = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        jobScheduler.Verify(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload", expectedTimestamp), Times.Once);
 
         Assert.Equal(2, response.Positions.Count);
         Assert.Equal(2, response.Imported);
@@ -152,7 +153,7 @@ public sealed class PortfolioReplaceServiceTests
             .ReturnsAsync((0.05m, 0.05m));
 
         var jobScheduler = new Mock<IJobScheduler>();
-        jobScheduler.Setup(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload"));
+        jobScheduler.Setup(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload", It.IsAny<DateTimeOffset>()));
 
         var service = CreateService(repository, securityCatalog, distributionReader, jobScheduler);
 
@@ -207,7 +208,7 @@ public sealed class PortfolioReplaceServiceTests
             .ReturnsAsync((null, null));
 
         var jobScheduler = new Mock<IJobScheduler>();
-        jobScheduler.Setup(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload"));
+        jobScheduler.Setup(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload", It.IsAny<DateTimeOffset>()));
 
         var service = CreateService(repository, securityCatalog, distributionReader, jobScheduler);
 
@@ -257,7 +258,7 @@ public sealed class PortfolioReplaceServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.ReplaceAsync("user-1", rows, Array.Empty<ValidationIssue>(), CancellationToken.None));
 
         repository.Verify(r => r.RollbackAsync(It.IsAny<CancellationToken>()), Times.Once);
-        jobScheduler.Verify(scheduler => scheduler.EnqueuePortfolioRecalc(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        jobScheduler.Verify(scheduler => scheduler.EnqueuePortfolioRecalc(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTimeOffset>()), Times.Never);
     }
 
     [Fact]
@@ -302,7 +303,7 @@ public sealed class PortfolioReplaceServiceTests
             .ReturnsAsync((0.05m, 0.05m));
 
         var jobScheduler = new Mock<IJobScheduler>();
-        jobScheduler.Setup(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload"));
+        jobScheduler.Setup(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload", It.IsAny<DateTimeOffset>()));
 
         var service = CreateService(repository, securityCatalog, distributionReader, jobScheduler);
 

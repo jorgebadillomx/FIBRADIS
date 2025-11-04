@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using FIBRADIS.Application.Abstractions;
 using FIBRADIS.Application.Models;
 using FIBRADIS.Application.Ports;
@@ -51,6 +54,7 @@ public sealed class PortfolioReplaceServiceIntegrationTests
         var job = Assert.Single(jobScheduler.EnqueuedJobs);
         Assert.Equal("user-1", job.userId);
         Assert.Equal("upload", job.reason);
+        Assert.Equal(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero), job.requestedAt);
 
         var storedPositions = repository.GetCommittedPositions("user-1");
         Assert.Equal(2, storedPositions.Count);
@@ -247,6 +251,46 @@ public sealed class PortfolioReplaceServiceIntegrationTests
             return Task.FromResult(aggregated);
         }
 
+        public Task<IReadOnlyList<(string ticker, decimal qty, decimal avgCost)>> GetCurrentPositionsAsync(string userId, CancellationToken ct)
+        {
+            return Task.FromResult<IReadOnlyList<(string ticker, decimal qty, decimal avgCost)>>(GetCommittedPositions(userId));
+        }
+
+        public Task<IReadOnlyList<PortfolioCashflow>> GetCashflowHistoryAsync(string userId, CancellationToken ct)
+        {
+            return Task.FromResult<IReadOnlyList<PortfolioCashflow>>(Array.Empty<PortfolioCashflow>());
+        }
+
+        public Task<IReadOnlyList<PortfolioValuationSnapshot>> GetValuationHistoryAsync(string userId, CancellationToken ct)
+        {
+            return Task.FromResult<IReadOnlyList<PortfolioValuationSnapshot>>(Array.Empty<PortfolioValuationSnapshot>());
+        }
+
+        public Task<PortfolioJobRunRecord?> GetJobRunAsync(string userId, string reason, DateOnly executionDate, CancellationToken ct)
+        {
+            return Task.FromResult<PortfolioJobRunRecord?>(null);
+        }
+
+        public Task SaveJobRunAsync(PortfolioJobRunRecord record, CancellationToken ct)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task SaveCurrentMetricsAsync(string userId, PortfolioRecalcMetricsSnapshot snapshot, CancellationToken ct)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task AppendMetricsHistoryAsync(string userId, PortfolioRecalcMetricsSnapshot snapshot, Guid jobRunId, string reason, CancellationToken ct)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task RecordDeadLetterAsync(PortfolioJobDeadLetterRecord record, CancellationToken ct)
+        {
+            return Task.CompletedTask;
+        }
+
         public List<(string ticker, decimal qty, decimal avgCost)> GetCommittedPositions(string userId)
         {
             if (!_store.TryGetValue(userId, out var list))
@@ -337,11 +381,11 @@ public sealed class PortfolioReplaceServiceIntegrationTests
 
     private sealed class TestJobScheduler : IJobScheduler
     {
-        public List<(string userId, string reason)> EnqueuedJobs { get; } = new();
+        public List<(string userId, string reason, DateTimeOffset requestedAt)> EnqueuedJobs { get; } = new();
 
-        public void EnqueuePortfolioRecalc(string userId, string reason)
+        public void EnqueuePortfolioRecalc(string userId, string reason, DateTimeOffset requestedAt)
         {
-            EnqueuedJobs.Add((userId, reason));
+            EnqueuedJobs.Add((userId, reason, requestedAt));
         }
     }
 
