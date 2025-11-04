@@ -6,6 +6,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FIBRADIS.Api", "FIBRADIS.Ap
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FIBRADIS.Api.Tests", "FIBRADIS.Api.Tests\\FIBRADIS.Api.Tests.csproj", "{ED11D2B8-BA12-4752-A41B-166F43D76185}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FIBRADIS.Application", "FIBRADIS.Application\\FIBRADIS.Application.csproj", "{05548186-D5AE-4A6D-8700-043A551F76CE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FIBRADIS.Tests.Unit", "FIBRADIS.Tests.Unit\\FIBRADIS.Tests.Unit.csproj", "{29DFB6F8-AD7A-4452-BA50-E7ED3856DDA0}"
+EndProject
 Global
 GlobalSection(SolutionConfigurationPlatforms) = preSolution
 Debug|Any CPU = Debug|Any CPU
@@ -20,6 +24,14 @@ GlobalSection(ProjectConfigurationPlatforms) = postSolution
 {ED11D2B8-BA12-4752-A41B-166F43D76185}.Debug|Any CPU.Build.0 = Debug|Any CPU
 {ED11D2B8-BA12-4752-A41B-166F43D76185}.Release|Any CPU.ActiveCfg = Release|Any CPU
 {ED11D2B8-BA12-4752-A41B-166F43D76185}.Release|Any CPU.Build.0 = Release|Any CPU
+{05548186-D5AE-4A6D-8700-043A551F76CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+{05548186-D5AE-4A6D-8700-043A551F76CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+{05548186-D5AE-4A6D-8700-043A551F76CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+{05548186-D5AE-4A6D-8700-043A551F76CE}.Release|Any CPU.Build.0 = Release|Any CPU
+{29DFB6F8-AD7A-4452-BA50-E7ED3856DDA0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+{29DFB6F8-AD7A-4452-BA50-E7ED3856DDA0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+{29DFB6F8-AD7A-4452-BA50-E7ED3856DDA0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+{29DFB6F8-AD7A-4452-BA50-E7ED3856DDA0}.Release|Any CPU.Build.0 = Release|Any CPU
 EndGlobalSection
 GlobalSection(SolutionProperties) = preSolution
 HideSolutionNode = FALSE
