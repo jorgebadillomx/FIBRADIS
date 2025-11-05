@@ -45,13 +45,19 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<RequestMetricsCollector>();
 builder.Services.AddSingleton<UploadMetricsCollector>();
 builder.Services.AddSingleton<IPortfolioRecalcMetricsCollector, PortfolioRecalcMetricsCollector>();
+builder.Services.AddSingleton<IFactsMetricsCollector, FactsMetricsCollector>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<ICorrelationIdAccessor, HttpContextCorrelationIdAccessor>();
 builder.Services.AddSingleton<IPortfolioFileParser, PortfolioFileParser>();
 builder.Services.AddSingleton<IPortfolioReplaceService, PortfolioReplaceService>();
+builder.Services.AddSingleton<IPdfFactsParserService, PdfFactsParserService>();
 builder.Services.AddSingleton<IPortfolioRepository, InMemoryPortfolioRepository>();
 builder.Services.AddSingleton<ISecurityCatalog, InMemorySecurityCatalog>();
 builder.Services.AddSingleton<IDistributionReader, InMemoryDistributionReader>();
+builder.Services.AddSingleton<IDocumentStorage, InMemoryDocumentStorage>();
+builder.Services.AddSingleton<IFactsRepository, InMemoryFactsRepository>();
+builder.Services.AddSingleton<IPdfTextExtractor, SimplePdfTextExtractor>();
+builder.Services.AddSingleton<IOcrProvider, InMemoryOcrProvider>();
 builder.Services.AddSingleton<IJobScheduler, NoopJobScheduler>();
 
 builder.Services.AddAuthentication(options =>

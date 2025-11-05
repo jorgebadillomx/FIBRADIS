@@ -151,8 +151,8 @@ Proporcionar a los usuarios herramientas para registrar, analizar y monitorear p
 ### Prompt 5 — Job Hangfire `PortfolioRecalcJob`
 **Objetivo:** Recalcular métricas avanzadas (TWR, MWR, yields) por usuario tras eventos de portafolio o mercado.
 
-**Configuración**  
-- Cola `recalc`.  
+**Configuración**
+- Cola `recalc`.
 - Entrada `PortfolioRecalcJobInput { UserId, Reason, RequestedAt }`.  
 - Idempotencia diaria (`UserId`, `Reason`, `Date`).
 
@@ -170,13 +170,40 @@ Proporcionar a los usuarios herramientas para registrar, analizar y monitorear p
 - Dead Letter Queue con contexto (`UserId`, `Reason`, excepción, stacktrace).  
 - Saltos idempotentes cuando el job ya corrió para el mismo `UserId`+`Reason`+`Date` (excepto `upload`).
 
-**Pruebas clave**  
-- Unitaria: éxito, idempotencia, reintentos, fallos permanentes, cálculo TWR/MWR.  
+**Pruebas clave**
+- Unitaria: éxito, idempotencia, reintentos, fallos permanentes, cálculo TWR/MWR.
 - Integración: disparo tras upload, cambios de precio, batch nocturno, observabilidad.
 
+### Prompt 6 — Parser `PdfFactsParserService`
+**Objetivo:** Transformar reportes trimestrales en PDF en un conjunto de KPIs normalizados (`NAV/CBFI`, `NOI`, `AFFO`, `LTV`, `Occupancy`, `Dividends`) con scoring de calidad y persistencia histórica.
+
+**Componentes y contratos**
+- Servicio `PdfFactsParserService` que implementa `IPdfFactsParserService`.
+- Entradas `ParseFactsRequest { DocumentId, FibraTicker, Url, Hash, ParserVersion }`.
+- Salida `ParsedFactsResult` con KPIs normalizados, `PeriodTag`, `Score`, `SourceUrl`.
+- Dependencias: `IDocumentStorage`, `IPdfTextExtractor`, `IOcrProvider`, `IFactsRepository`, `IFactsMetricsCollector`, `IClock`, `ICorrelationIdAccessor`.
+
+**Flujo**
+1. Recupera el binario desde `DocumentStorage` y valida el `Hash`.
+2. Extrae texto/tablas vía `IPdfTextExtractor`; si el PDF es imagen recurre a `IOcrProvider`.
+3. Detecta el periodo (`1T2025`, `4Q2024`, etc.) mediante expresiones regulares y fecha del documento.
+4. Aplica reglas deterministas para localizar los KPIs en texto/tablas y normaliza unidades (porcentajes 0–1, montos en millones cuando corresponde, redondeo a 6 decimales).
+5. Calcula `Score` (cobertura de campos + confianza OCR) e idempotencia (`DocumentId`, `ParserVersion`, `Hash`).
+6. Si el `Score` ≥ 70, guarda en `DocumentFacts` y marca versiones previas como `superseded`; en caso contrario envía a revisión manual.
+7. Registra `FactsHistory` y expone métricas (`facts_parsed_total`, `facts_failed_total`, `facts_score_avg`, `facts_duration_ms_p95`).
+
+**Observabilidad y auditoría**
+- Logs con `RequestId`, `DocumentId`, `FibraTicker`, `PeriodTag`, `Score`, `ElapsedMs`, `FieldsFound`, `Ocr`.
+- Métricas agregadas mediante `FactsMetricsCollector` (invocaciones, fallos, p95, promedio de score).
+- DLQ para errores críticos y reintentos cuando el OCR falla.
+
+**Pruebas clave**
+- Unitarias: texto legible, tablas estructuradas, PDF imagen con OCR, campos incompletos (score < 70), hash inválido.
+- Integración: pipeline download → parse → facts, idempotencia, fallback OCR, persistencia en `DocumentFacts` y `FactsHistory`.
+
 ## 5. Observabilidad Global
-- Logs estructurados con `RequestId`, `UserId`, `ElapsedMs`, `Imported`, `PositionsCount`.  
-- Métricas de latencia (p50/p95), contadores de jobs y ratio de errores.  
+- Logs estructurados con `RequestId`, `UserId`, `ElapsedMs`, `Imported`, `PositionsCount`.
+- Métricas de latencia (p50/p95), contadores de jobs y ratio de errores.
 - Endpoints `/health` y `/metrics`.  
 - Auditoría centralizada en `AuditLogs` y `Jobs/JobRuns`.
 
