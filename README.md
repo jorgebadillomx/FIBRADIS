@@ -84,3 +84,22 @@ La API inicia por defecto en `http://localhost:5000`.
 * **Resiliencia**: retries automáticos, clasificación de errores, registro en DLQ (`PortfolioJobDeadLetterRecord`).
 * **Auditoría**: inserta registros en `Jobs/JobRuns` y `DeadLetters` con `JobRunId`, `Reason`, métricas y stacktrace.
 * **Cobertura de pruebas**: unitarias (casos exitosos, idempotencia, fallos transitorios, DLQ, cálculos TWR/MWR) e integrales (flujo upload→recalc, métricas persistidas y auditoría).
+
+### Módulo `Distributions` — Yahoo + Reconciliación
+
+* **Ubicación**:
+  * Job `dividends:pull`: `FIBRADIS.Application/Jobs/DividendsPullJob.cs`.
+  * Job `dividends:reconcile`: `FIBRADIS.Application/Jobs/DividendsReconcileJob.cs`.
+  * Servicio de conciliación: `FIBRADIS.Application/Services/DistributionReconcilerService.cs`.
+* **Objetivo**: importar distribuciones desde Yahoo Finance, reconciliarlas con fuentes oficiales (AMEFIBRA/BMV/HR) y actualizar `Distributions`, `Securities` y métricas de portafolios.
+* **Flujo**:
+  1. `dividends:pull` consulta tickers activos, llama a Yahoo Finance (`IDividendImporterYahoo`) y persiste eventos con estado `imported`, fuente `Yahoo` y `Confidence=0.5`.
+  2. `dividends:reconcile` busca eventos `imported`, cruza con registros oficiales (`IOfficialDistributionSource`) por ticker, fecha ±7d y monto ±3%, ajusta fechas/montos/tipo, separa Dividend/CapitalReturn cuando aplica y marca como `verified` (`Confidence=0.9`).
+  3. Calcula `YieldTTM` (dividendos últimos 12 meses) y `YieldForward` (último dividendo anualizado) usando precios vigentes (`ISecurityCatalog`).
+  4. Actualiza `Securities`, escribe yields accesibles vía `IDistributionReader`, actualiza métricas rápidas en `PortfolioMetrics` y encola `PortfolioRecalcJob(reason="distribution")` para los usuarios con posiciones afectadas.
+* **Estados de `Distributions`**: `imported`, `verified`, `ignored`, `superseded` (cuando se reemplaza por splits u oficiales). PeriodTag se recalcula con el helper `DistributionPeriodHelper` (ej. `1T2025`).
+* **Observabilidad**: métricas `dividends_pull_total`, `dividends_pull_failed`, `dividends_reconcile_total`, `dividends_verified_ratio`, `yield_ttm_avg`, `yield_forward_avg` mediante `IDividendsMetricsCollector` e `IDistributionReconcileMetricsCollector`; logs estructurados con `JobRunId`, `Ticker`, `Imported`, `Verified`, `Ignored`, `ElapsedMs` y DLQ en caso de excepción.
+* **Resiliencia**: reintentos exponenciales para Yahoo (hasta 3), tolerancia ±3 % en reconciliación, división de eventos mixtos, detección de datos inconsistentes (`ignored`) y fallback cuando no hay match (permanece `imported`).
+* **Pruebas**:
+  * Unitarias: importación Yahoo, reconciliación exacta ±3d, división dividend/capital return, tolerancia de ±3 %, casos sin match (`imported`), datos inválidos (`ignored`) y cálculo de yields.
+  * Integrales: pipeline completo pull→reconcile, actualización de `Securities.YieldTTM/YieldForward`, encolado de `PortfolioRecalcJob(reason="distribution")`, auditoría/metricas y verificación de idempotencia.

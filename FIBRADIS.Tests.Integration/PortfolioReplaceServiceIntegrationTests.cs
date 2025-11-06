@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using FIBRADIS.Application.Abstractions;
 using FIBRADIS.Application.Models;
 using FIBRADIS.Application.Ports;
@@ -182,6 +184,8 @@ public sealed class PortfolioReplaceServiceIntegrationTests
         private readonly SemaphoreSlim _gate = new(1, 1);
         private Dictionary<string, List<(string ticker, decimal qty, decimal avgCost)>> _store = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, List<(string ticker, decimal qty, decimal avgCost)>>? _working;
+        private readonly Dictionary<string, Dictionary<string, (decimal? YieldTtm, decimal? YieldForward)>> _portfolioYields =
+            new(StringComparer.OrdinalIgnoreCase);
 
         public async Task BeginTransactionAsync(CancellationToken ct)
         {
@@ -288,6 +292,27 @@ public sealed class PortfolioReplaceServiceIntegrationTests
 
         public Task RecordDeadLetterAsync(PortfolioJobDeadLetterRecord record, CancellationToken ct)
         {
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<string>> GetUsersHoldingTickerAsync(string ticker, CancellationToken ct)
+        {
+            var users = _store
+                .Where(entry => entry.Value.Any(position => string.Equals(position.ticker, ticker, StringComparison.OrdinalIgnoreCase) && position.qty > 0))
+                .Select(entry => entry.Key)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<string>>(users);
+        }
+
+        public Task UpdatePortfolioYieldMetricsAsync(string userId, string ticker, decimal? yieldTtm, decimal? yieldForward, CancellationToken ct)
+        {
+            if (!_portfolioYields.TryGetValue(userId, out var map))
+            {
+                map = new Dictionary<string, (decimal?, decimal?)>(StringComparer.OrdinalIgnoreCase);
+                _portfolioYields[userId] = map;
+            }
+
+            map[ticker] = (yieldTtm, yieldForward);
             return Task.CompletedTask;
         }
 

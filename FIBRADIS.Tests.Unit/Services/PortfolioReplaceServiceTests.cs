@@ -65,6 +65,15 @@ public sealed class PortfolioReplaceServiceTests
             });
         repository.Setup(r => r.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         repository.Setup(r => r.RollbackAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        repository.Setup(r => r.GetUsersHoldingTickerAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<string>());
+        repository.Setup(r => r.UpdatePortfolioYieldMetricsAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<decimal?>(),
+                It.IsAny<decimal?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var securityCatalog = new Mock<ISecurityCatalog>(MockBehavior.Strict);
         securityCatalog.Setup(c => c.GetLastPricesAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))

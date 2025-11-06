@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
 using FIBRADIS.Application.Ports;
 
 namespace FIBRADIS.Api.Infrastructure;
 
-public sealed class InMemoryDistributionReader : IDistributionReader
+public sealed class InMemoryDistributionReader : IDistributionReader, IDistributionMetricsWriter
 {
     private readonly ConcurrentDictionary<string, (decimal? YieldTtm, decimal? YieldForward)> _yields =
         new(StringComparer.OrdinalIgnoreCase);
@@ -36,5 +38,11 @@ public sealed class InMemoryDistributionReader : IDistributionReader
         }
 
         _yields[ticker.Trim().ToUpperInvariant()] = (yieldTtm, yieldForward);
+    }
+
+    public Task SetYieldsAsync(string ticker, decimal? yieldTtm, decimal? yieldForward, CancellationToken ct)
+    {
+        SetYield(ticker, yieldTtm, yieldForward);
+        return Task.CompletedTask;
     }
 }
