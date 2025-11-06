@@ -201,6 +201,42 @@ Proporcionar a los usuarios herramientas para registrar, analizar y monitorear p
 - Unitarias: texto legible, tablas estructuradas, PDF imagen con OCR, campos incompletos (score < 70), hash inválido.
 - Integración: pipeline download → parse → facts, idempotencia, fallback OCR, persistencia en `DocumentFacts` y `FactsHistory`.
 
+### Prompt 8 — Catálogo de FIBRAs (Securities)
+**Ubicación:** `FIBRADIS.Api/Controllers/SecuritiesEndpoints.cs`
+
+**Objetivo:** Centralizar el catálogo oficial de FIBRAs mexicanas con precios vigentes, KPIs y yields; exponerlo vía API pública cacheada (`GET /v1/securities`).
+
+**Servicios y componentes**
+- `ISecuritiesRepository` / `InMemorySecuritiesRepository`: almacena entidades `SecurityEntity` con KPIs actualizables por jobs (quotes, facts, distributions).
+- `ISecurityRepository`: compatibilidad para módulos previos (actualización de yields desde reconciliaciones).
+- `ISecuritiesCacheService` / `InMemorySecuritiesCacheService`: cache in-memory con TTL de 60 s, hash SHA-256 y serialización consistente (`SecuritiesJson`).
+- `SecuritiesMetricsCollector`: métricas Prometheus (`securities_cache_hits_total`, `securities_cache_miss_total`, `securities_latency_p95`).
+- Endpoint `/v1/securities` con rate limit de 60 req/min, soporte de filtro `?ticker=`, ETag y manejo de `If-None-Match`.
+
+**Campos expuestos (DTO `SecurityDto`)**
+- `Ticker`, `Name`, `Sector`, `LastPrice`, `LastPriceDate`, `YieldTTM`, `YieldForward`, `NavPerCBFI`, `Ltv`, `Occupancy`, `UpdatedAt`.
+
+**Flujo del endpoint**
+1. Consulta el cache (`ISecuritiesCacheService`).
+2. Si no existe snapshot válido, recupera del repositorio, serializa y calcula ETag (SHA-256 del payload).
+3. Aplica filtro por ticker cuando procede y responde con `Cache-Control: public, max-age=60` más cabecera `ETag`.
+4. Responde `304 Not Modified` cuando el cliente envía un `If-None-Match` coincidente.
+5. Registra logs estructurados (`RequestId`, `Ticker`, `Cached`, `ElapsedMs`, `Count`).
+
+**Observabilidad y cache**
+- TTL fijo de 60 segundos en API (preparado para CDN).
+- `SecuritiesMetricsCollector` agrega latencia p95 y contadores de hits/miss, expuestos en `/metrics` junto a las métricas existentes.
+- Logs integrados al pipeline estándar con `RequestTrackingMiddleware`.
+
+**Pruebas implementadas**
+- Unitarias: cache warm/hot (`GetAll_ReturnsCachedList`), invalidación tras actualización, cambio de ETag y respuestas filtradas (ticker existente / no encontrado).
+- Integración: listado completo (>10 FIBRAs), consulta por ticker, estabilidad del ETag dentro del TTL, propagación de updates desde repositorio y disponibilidad de métricas.
+
+**Integraciones clave**
+- Jobs `quotes` (`IQuotesJob`), `facts` y reconciliación de dividendos invalidan el cache al actualizar métricas.
+- Módulo de portafolios reutiliza el catálogo para validar tickers y calcular yields.
+- Endpoint público consumido por el frontend para banner de precios.
+
 ## 5. Observabilidad Global
 - Logs estructurados con `RequestId`, `UserId`, `ElapsedMs`, `Imported`, `PositionsCount`.
 - Métricas de latencia (p50/p95), contadores de jobs y ratio de errores.

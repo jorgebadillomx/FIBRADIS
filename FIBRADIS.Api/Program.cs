@@ -2,12 +2,14 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using FIBRADIS.Api.Authentication;
+using FIBRADIS.Api.Controllers;
 using FIBRADIS.Api.Diagnostics;
 using FIBRADIS.Api.Infrastructure;
 using FIBRADIS.Api.Middleware;
@@ -43,6 +45,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<RequestMetricsCollector>();
+builder.Services.AddSingleton<SecuritiesMetricsCollector>();
 builder.Services.AddSingleton<UploadMetricsCollector>();
 builder.Services.AddSingleton<IPortfolioRecalcMetricsCollector, PortfolioRecalcMetricsCollector>();
 builder.Services.AddSingleton<IFactsMetricsCollector, FactsMetricsCollector>();
@@ -59,6 +62,18 @@ builder.Services.AddSingleton<IFactsRepository, InMemoryFactsRepository>();
 builder.Services.AddSingleton<IPdfTextExtractor, SimplePdfTextExtractor>();
 builder.Services.AddSingleton<IOcrProvider, InMemoryOcrProvider>();
 builder.Services.AddSingleton<IJobScheduler, NoopJobScheduler>();
+builder.Services.AddSingleton<InMemorySecuritiesRepository>();
+builder.Services.AddSingleton<ISecuritiesRepository>(sp => sp.GetRequiredService<InMemorySecuritiesRepository>());
+builder.Services.AddSingleton<ISecurityRepository>(sp => sp.GetRequiredService<InMemorySecuritiesRepository>());
+builder.Services.AddSingleton<ISecuritiesCacheService>(sp =>
+{
+    var repository = sp.GetRequiredService<InMemorySecuritiesRepository>();
+    var metrics = sp.GetRequiredService<SecuritiesMetricsCollector>();
+    var clock = sp.GetRequiredService<IClock>();
+    var cache = new InMemorySecuritiesCacheService(repository, metrics, clock);
+    repository.Changed += (_, _) => cache.InvalidateCache();
+    return cache;
+});
 
 builder.Services.AddAuthentication(options =>
 {
@@ -118,6 +133,20 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         });
     });
+
+    options.AddPolicy("SecuritiesPublicPolicy", httpContext =>
+    {
+        var remoteIp = httpContext.Connection.RemoteIpAddress?.ToString();
+        var partitionKey = string.IsNullOrWhiteSpace(remoteIp) ? "anonymous" : remoteIp!;
+
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 60,
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        });
+    });
 });
 
 builder.Services.AddHealthChecks()
@@ -144,6 +173,8 @@ app.MapGet("/v1/ping", (HttpContext context) =>
 
     return Results.Json(new PingResponse("pong", requestId));
 });
+
+app.MapSecuritiesEndpoints();
 
 app.MapPost("/v1/portfolio/upload",
     async Task<IResult> (
@@ -387,9 +418,12 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     }
 });
 
-app.MapGet("/metrics", (RequestMetricsCollector collector) =>
+app.MapGet("/metrics", (RequestMetricsCollector collector, SecuritiesMetricsCollector securitiesCollector) =>
 {
-    return Results.Text(collector.Collect(), "text/plain; version=0.0.4; charset=utf-8");
+    var builder = new StringBuilder();
+    builder.Append(collector.Collect());
+    builder.Append(securitiesCollector.Collect());
+    return Results.Text(builder.ToString(), "text/plain; version=0.0.4; charset=utf-8");
 });
 
 app.Lifetime.ApplicationStarted.Register(() =>
