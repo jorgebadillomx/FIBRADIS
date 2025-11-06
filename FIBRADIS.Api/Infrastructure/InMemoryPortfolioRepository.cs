@@ -2,6 +2,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using FIBRADIS.Application.Models;
 using FIBRADIS.Application.Ports;
 
@@ -21,6 +23,8 @@ public sealed class InMemoryPortfolioRepository : IPortfolioRepository
     private readonly ConcurrentDictionary<string, List<(Guid JobRunId, string Reason, PortfolioRecalcMetricsSnapshot Snapshot)>> _metricsHistory =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentBag<PortfolioJobDeadLetterRecord> _deadLetters = new();
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, (decimal? YieldTtm, decimal? YieldForward)>> _portfolioYields =
+        new(StringComparer.OrdinalIgnoreCase);
 
     private readonly SemaphoreSlim _transactionLock = new(1, 1);
     private readonly AsyncLocal<TransactionState?> _currentTransaction = new();
@@ -171,6 +175,25 @@ public sealed class InMemoryPortfolioRepository : IPortfolioRepository
         return Task.CompletedTask;
     }
 
+    public Task<IReadOnlyList<string>> GetUsersHoldingTickerAsync(string ticker, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(ticker);
+        var users = _store
+            .Where(pair => pair.Value.Any(position => string.Equals(position.ticker, ticker, StringComparison.OrdinalIgnoreCase) && position.qty > 0))
+            .Select(pair => pair.Key)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<string>>(users);
+    }
+
+    public Task UpdatePortfolioYieldMetricsAsync(string userId, string ticker, decimal? yieldTtm, decimal? yieldForward, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(userId);
+        ArgumentException.ThrowIfNullOrEmpty(ticker);
+        var userMetrics = _portfolioYields.GetOrAdd(userId, static () => new ConcurrentDictionary<string, (decimal?, decimal?)>(StringComparer.OrdinalIgnoreCase));
+        userMetrics[ticker] = (yieldTtm, yieldForward);
+        return Task.CompletedTask;
+    }
+
     public List<(string ticker, decimal qty, decimal avgCost)> GetCommittedPositions(string userId)
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
@@ -197,6 +220,14 @@ public sealed class InMemoryPortfolioRepository : IPortfolioRepository
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
         return _currentMetrics.TryGetValue(userId, out var snapshot) ? snapshot : null;
+    }
+
+    public IReadOnlyDictionary<string, (decimal? YieldTtm, decimal? YieldForward)> GetPortfolioYields(string userId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(userId);
+        return _portfolioYields.TryGetValue(userId, out var metrics)
+            ? metrics.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, (decimal?, decimal?)>(StringComparer.OrdinalIgnoreCase);
     }
 
     public IReadOnlyCollection<(Guid JobRunId, string Reason, PortfolioRecalcMetricsSnapshot Snapshot)> GetMetricsHistory(string userId)

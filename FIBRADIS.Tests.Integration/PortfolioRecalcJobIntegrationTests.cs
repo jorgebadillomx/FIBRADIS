@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using FIBRADIS.Application.Abstractions;
 using FIBRADIS.Application.Jobs;
 using FIBRADIS.Application.Models;
@@ -92,6 +94,8 @@ public sealed class PortfolioRecalcJobIntegrationTests
         private readonly List<(string userId, Guid jobRunId, string reason, PortfolioRecalcMetricsSnapshot snapshot)> _metricsHistory = new();
         private readonly Dictionary<(string userId, string reason, DateOnly date), PortfolioJobRunRecord> _jobRuns = new();
         private readonly List<PortfolioJobDeadLetterRecord> _deadLetters = new();
+        private readonly Dictionary<string, Dictionary<string, (decimal? YieldTtm, decimal? YieldForward)>> _portfolioYields =
+            new(StringComparer.OrdinalIgnoreCase);
         private bool _inTransaction;
 
         public Task BeginTransactionAsync(CancellationToken ct)
@@ -212,6 +216,27 @@ public sealed class PortfolioRecalcJobIntegrationTests
         public Task RecordDeadLetterAsync(PortfolioJobDeadLetterRecord record, CancellationToken ct)
         {
             _deadLetters.Add(record);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<string>> GetUsersHoldingTickerAsync(string ticker, CancellationToken ct)
+        {
+            var users = _store
+                .Where(entry => entry.Value.Any(position => string.Equals(position.ticker, ticker, StringComparison.OrdinalIgnoreCase) && position.qty > 0))
+                .Select(entry => entry.Key)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<string>>(users);
+        }
+
+        public Task UpdatePortfolioYieldMetricsAsync(string userId, string ticker, decimal? yieldTtm, decimal? yieldForward, CancellationToken ct)
+        {
+            if (!_portfolioYields.TryGetValue(userId, out var map))
+            {
+                map = new Dictionary<string, (decimal?, decimal?)>(StringComparer.OrdinalIgnoreCase);
+                _portfolioYields[userId] = map;
+            }
+
+            map[ticker] = (yieldTtm, yieldForward);
             return Task.CompletedTask;
         }
 

@@ -32,4 +32,8 @@ public interface IPortfolioRepository
     Task AppendMetricsHistoryAsync(string userId, PortfolioRecalcMetricsSnapshot snapshot, Guid jobRunId, string reason, CancellationToken ct);
 
     Task RecordDeadLetterAsync(PortfolioJobDeadLetterRecord record, CancellationToken ct);
+
+    Task<IReadOnlyList<string>> GetUsersHoldingTickerAsync(string ticker, CancellationToken ct);
+
+    Task UpdatePortfolioYieldMetricsAsync(string userId, string ticker, decimal? yieldTtm, decimal? yieldForward, CancellationToken ct);
 }

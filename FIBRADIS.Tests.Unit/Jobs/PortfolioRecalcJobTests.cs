@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using FIBRADIS.Application.Abstractions;
 using FIBRADIS.Application.Jobs;
 using FIBRADIS.Application.Models;
@@ -223,6 +225,9 @@ public sealed class PortfolioRecalcJobTests
 
         public List<PortfolioJobDeadLetterRecord> DeadLetters { get; } = new();
 
+        public Dictionary<string, Dictionary<string, (decimal? YieldTtm, decimal? YieldForward)>> PortfolioYields { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
         public Exception? PositionsException { get; set; }
 
         public Exception? SaveMetricsException { get; set; }
@@ -309,6 +314,28 @@ public sealed class PortfolioRecalcJobTests
         public Task RecordDeadLetterAsync(PortfolioJobDeadLetterRecord record, CancellationToken ct)
         {
             DeadLetters.Add(record);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<string>> GetUsersHoldingTickerAsync(string ticker, CancellationToken ct)
+        {
+            var holders = Positions
+                .Where(position => string.Equals(position.ticker, ticker, StringComparison.OrdinalIgnoreCase) && position.qty > 0)
+                .Select(_ => "user-1")
+                .Distinct()
+                .ToList();
+            return Task.FromResult<IReadOnlyList<string>>(holders);
+        }
+
+        public Task UpdatePortfolioYieldMetricsAsync(string userId, string ticker, decimal? yieldTtm, decimal? yieldForward, CancellationToken ct)
+        {
+            if (!PortfolioYields.TryGetValue(userId, out var map))
+            {
+                map = new Dictionary<string, (decimal?, decimal?)>(StringComparer.OrdinalIgnoreCase);
+                PortfolioYields[userId] = map;
+            }
+
+            map[ticker] = (yieldTtm, yieldForward);
             return Task.CompletedTask;
         }
 
