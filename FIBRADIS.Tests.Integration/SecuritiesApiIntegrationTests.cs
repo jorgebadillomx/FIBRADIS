@@ -1,6 +1,9 @@
+using System.Collections.Generic;
+using System.Net.Http.Json;
 using System.Text.Json;
 using FIBRADIS.Application.Interfaces;
 using FIBRADIS.Application.Models;
+using FIBRADIS.Application.Models.Auth;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,10 +18,20 @@ public class SecuritiesApiIntegrationTests : IClassFixture<WebApplicationFactory
         _factory = factory.WithWebHostBuilder(_ => { });
     }
 
+    private static async Task<string> AuthenticateAsync(HttpClient client)
+    {
+        var response = await client.PostAsJsonAsync("/auth/login", new LoginRequest("viewer", "Viewer123!"));
+        response.EnsureSuccessStatusCode();
+        var auth = await response.Content.ReadFromJsonAsync<AuthEnvelope>();
+        return auth!.Tokens.AccessToken;
+    }
+
     [Fact]
     public async Task GetAllSecurities_ReturnsList()
     {
         using var client = _factory.CreateClient();
+        var token = await AuthenticateAsync(client);
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var response = await client.GetAsync("/v1/securities");
         response.EnsureSuccessStatusCode();
@@ -38,6 +51,8 @@ public class SecuritiesApiIntegrationTests : IClassFixture<WebApplicationFactory
     public async Task GetSecurities_ByTicker_ReturnsSingle()
     {
         using var client = _factory.CreateClient();
+        var token = await AuthenticateAsync(client);
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var response = await client.GetAsync("/v1/securities?ticker=FUNO11");
         response.EnsureSuccessStatusCode();
@@ -56,6 +71,8 @@ public class SecuritiesApiIntegrationTests : IClassFixture<WebApplicationFactory
     public async Task Cache_Ttl_ReturnsSameEtagWithinWindow()
     {
         using var client = _factory.CreateClient();
+        var token = await AuthenticateAsync(client);
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var first = await client.GetAsync("/v1/securities");
         first.EnsureSuccessStatusCode();
@@ -84,6 +101,8 @@ public class SecuritiesApiIntegrationTests : IClassFixture<WebApplicationFactory
             CancellationToken.None);
 
         using var client = _factory.CreateClient();
+        var token = await AuthenticateAsync(client);
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         var response = await client.GetAsync("/v1/securities?ticker=FUNO11");
         response.EnsureSuccessStatusCode();
         var payload = await response.Content.ReadAsStringAsync();
@@ -103,6 +122,8 @@ public class SecuritiesApiIntegrationTests : IClassFixture<WebApplicationFactory
     public async Task Metrics_Endpoint_Includes_SecuritiesMetrics()
     {
         using var client = _factory.CreateClient();
+        var token = await AuthenticateAsync(client);
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         _ = await client.GetAsync("/v1/securities");
         var metricsResponse = await client.GetAsync("/metrics");
@@ -113,3 +134,7 @@ public class SecuritiesApiIntegrationTests : IClassFixture<WebApplicationFactory
         Assert.Contains("securities_latency_p95", payload);
     }
 }
+
+internal sealed record LoginRequest(string Username, string Password);
+
+internal sealed record AuthEnvelope(TokenPair Tokens, IReadOnlyCollection<string> Roles);

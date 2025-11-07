@@ -41,6 +41,29 @@ La API inicia por defecto en `http://localhost:5000`.
 * **Dependencias**: Prometheus, Grafana, Loki/Tempo, AlertManager.
 * **Estado**: ✅ Implementado y validado.
 
+## Seguridad extendida y BYO Key Tracking
+
+* **Ubicación**: `FIBRADIS.Api/Security` + `FIBRADIS.Application/Services/Auth`.
+* **Objetivo**: Autenticación JWT (15 min) con refresh tokens rotatorios (7 días), auditoría completa y controles de cuota para API privada, LLM y panel admin.
+* **Roles soportados**: `viewer`, `user`, `admin`.
+* **Endpoints**:
+  * `POST /auth/login` → genera `accessToken` y `refreshToken` (cookie http-only) y devuelve roles.
+  * `POST /auth/refresh` → valida y rota el refresh token antes de expirar.
+  * `POST /auth/logout` → revoca el refresh token activo.
+* **Componentes**:
+  * `AuthService` + `JwtTokenService` (HMAC-SHA256, `sub`/`role`/`iat`), `InMemoryRefreshTokenStore` (revocación y rotación) y `JwtAuthMiddleware` para establecer `ClaimsPrincipal`.
+  * `MemoryRateLimiterService` + `RateLimitMiddleware` con cuotas: 300 req/h por usuario (`viewer`/`user`), 60 req/min (`admin`).
+  * `AesSecretService` + `InMemoryLlmUsageTracker` para BYO Key cifrada (AES-256-GCM + PBKDF2 por usuario/proveedor) y control mensual (`byok_usage_tokens_total`).
+  * `InMemoryAuditService` + `AuditMiddleware` registran acciones sensibles (`auth.*`, `portfolio.upload`, endpoints admin) con IP, resultado y metadata JSON.
+  * Métricas en `ObservabilityMetricsRegistry`: `auth_logins_total`, `auth_refresh_total`, `auth_failed_total`, `rate_limit_blocked_total`, `byok_keys_active_total`, `byok_usage_tokens_total`.
+* **Alertas recomendadas**:
+  * `auth_failed_total > 10/min` → intento de fuerza bruta.
+  * `byok_usage_tokens_total` excede cuota configurada → suspender acceso LLM.
+* **Pruebas**:
+  * Unitarias: login/refresh/logout, fallas de credenciales, cifrado BYO Key, rate limit y auditoría.
+  * Integración: flujo login→refresh→logout, acceso protegido con JWT, `/v1/securities` autenticado.
+* **Estado**: ✅ Implementado y probado.
+
 ## Front público — Banner de precios
 
 * **Ubicación**: `frontend/public/components/BannerTicker.tsx`.

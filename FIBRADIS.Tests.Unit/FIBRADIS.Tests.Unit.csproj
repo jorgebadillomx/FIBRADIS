@@ -15,5 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../FIBRADIS.Application/FIBRADIS.Application.csproj" />
+    <ProjectReference Include="../FIBRADIS.Api/FIBRADIS.Api.csproj" />
   </ItemGroup>
 </Project>
