@@ -7,3 +7,5 @@ obj/
 *.swp
 *.DS_Store
 TestResults/
+node_modules/
+frontend/public/node_modules/

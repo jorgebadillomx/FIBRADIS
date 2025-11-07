@@ -30,6 +30,22 @@ La API inicia por defecto en `http://localhost:5000`.
 * Los tiempos de respuesta se agregan en histogramas simples expuestos en `/metrics`.
 * CORS está abierto únicamente en ambiente de desarrollo.
 
+## Front público — Banner de precios
+
+* **Ubicación**: `frontend/public/components/BannerTicker.tsx`.
+* **Framework**: React + Tailwind (SPA desplegada en CDN).
+* **Objetivo**: mostrar los precios y rendimientos actualizados de las FIBRAs listadas, con polling automático cada 60 s, cache local y accesibilidad AA.
+* **Integración**: consume el endpoint público `/v1/securities`.
+* **Características**:
+  * Poll cada 60 s y pausa automática si la pestaña está inactiva.
+  * Fallback a cache local (LocalStorage) y etiqueta `🔸 Desactualizado` si los datos tienen más de 5 min.
+  * Animaciones con Framer Motion, modo claro/oscuro sincronizado con la preferencia del sistema y métricas de fetch en consola (`fetch_time_ms`, `cache_hit`).
+* **Performance**: tamaño total < 50 KB gzip, sin dependencias pesadas.
+* **Pruebas**:
+  * Unitarias (render, desactualizado, polling, pausa por visibilidad, cache local, variación de color, error de red).
+  * Integración (Cypress: API real, offline, dark mode, bundle < 50 KB).
+* **Estado**: ✅ Implementado y probado.
+
 ## Portafolio
 
 ### Servicio `PortfolioReplaceService`
