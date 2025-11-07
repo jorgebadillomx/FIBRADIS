@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -14,19 +15,26 @@ using FIBRADIS.Api.Diagnostics;
 using FIBRADIS.Api.Infrastructure;
 using FIBRADIS.Api.Middleware;
 using FIBRADIS.Api.Models;
+using FIBRADIS.Api.Monitoring;
 using FIBRADIS.Application.Abstractions;
 using FIBRADIS.Application.Interfaces;
 using FIBRADIS.Application.Models;
 using FIBRADIS.Application.Ports;
 using FIBRADIS.Application.Services;
+using FIBRADIS.Infrastructure.Observability;
+using FIBRADIS.Infrastructure.Observability.Metrics;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using OpenTelemetry.Exporter.Prometheus.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddFibradisObservability(builder.Configuration);
+builder.UseFibradisSerilog();
 
 builder.Services.AddCors(options =>
 {
@@ -70,7 +78,8 @@ builder.Services.AddSingleton<ISecuritiesCacheService>(sp =>
     var repository = sp.GetRequiredService<InMemorySecuritiesRepository>();
     var metrics = sp.GetRequiredService<SecuritiesMetricsCollector>();
     var clock = sp.GetRequiredService<IClock>();
-    var cache = new InMemorySecuritiesCacheService(repository, metrics, clock);
+    var observabilityMetrics = sp.GetRequiredService<ObservabilityMetricsRegistry>();
+    var cache = new InMemorySecuritiesCacheService(repository, metrics, clock, observabilityMetrics);
     repository.Changed += (_, _) => cache.InvalidateCache();
     return cache;
 });
@@ -182,6 +191,7 @@ app.MapPost("/v1/portfolio/upload",
         IPortfolioFileParser parser,
         IPortfolioReplaceService replaceService,
         UploadMetricsCollector uploadMetrics,
+        ObservabilityMetricsRegistry observabilityMetrics,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken) =>
     {
@@ -347,6 +357,8 @@ app.MapPost("/v1/portfolio/upload",
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 requestId);
 
+            observabilityMetrics.RecordPortfolioReplacement();
+
             return Results.Ok(response);
         }
         catch (UnsupportedFormatException ex)
@@ -410,21 +422,23 @@ app.MapPost("/v1/portfolio/upload",
 
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
-    ResponseWriter = async (httpContext, report) =>
+    ResponseWriter = async (context, report) =>
     {
-        httpContext.Response.ContentType = "application/json";
-        var response = HealthReportModel.FromReport(report);
-        await httpContext.Response.WriteAsync(JsonSerializer.Serialize(response));
+        context.Response.ContentType = "application/json";
+        context.Response.Headers["Cache-Control"] = "public, max-age=10";
+        var uptimeProvider = context.RequestServices.GetRequiredService<ISystemUptimeProvider>();
+        var payload = HealthReportModel.FromReport(report, uptimeProvider.GetUptime());
+        await context.Response.WriteAsync(JsonSerializer.Serialize(payload)).ConfigureAwait(false);
+    },
+    ResultStatusCodes = new Dictionary<HealthStatus, int>
+    {
+        [HealthStatus.Healthy] = StatusCodes.Status200OK,
+        [HealthStatus.Degraded] = StatusCodes.Status200OK,
+        [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
     }
 });
 
-app.MapGet("/metrics", (RequestMetricsCollector collector, SecuritiesMetricsCollector securitiesCollector) =>
-{
-    var builder = new StringBuilder();
-    builder.Append(collector.Collect());
-    builder.Append(securitiesCollector.Collect());
-    return Results.Text(builder.ToString(), "text/plain; version=0.0.4; charset=utf-8");
-});
+app.MapPrometheusScrapingEndpoint("/metrics");
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {

@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace FIBRADIS.Api.Tests.Integration;
 
 public class MetricsEndpointTests : IClassFixture<ApiApplicationFactory>
@@ -23,7 +25,7 @@ public class MetricsEndpointTests : IClassFixture<ApiApplicationFactory>
 
         var content = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains("fibradis_request_in_flight", content);
-        Assert.Contains("fibradis_request_duration_seconds_count{method=\"GET\",path=\"/v1/ping\",status=\"200\"}", content);
+        Assert.Contains("# HELP http_requests_total", content);
+        Assert.Contains("http_requests_total{method=\"GET\",path=\"/v1/ping\",status_code=\"200\"}", content);
     }
 }

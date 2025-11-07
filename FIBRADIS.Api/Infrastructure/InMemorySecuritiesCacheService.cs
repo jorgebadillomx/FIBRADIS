@@ -9,6 +9,7 @@ using FIBRADIS.Api.Models;
 using FIBRADIS.Application.Abstractions;
 using FIBRADIS.Application.Interfaces;
 using FIBRADIS.Application.Models;
+using FIBRADIS.Infrastructure.Observability.Metrics;
 
 namespace FIBRADIS.Api.Infrastructure;
 
@@ -18,6 +19,7 @@ public sealed class InMemorySecuritiesCacheService : ISecuritiesCacheService, ID
     private readonly ISecuritiesRepository _repository;
     private readonly SecuritiesMetricsCollector _metrics;
     private readonly IClock _clock;
+    private readonly ObservabilityMetricsRegistry _observabilityMetrics;
     private readonly SemaphoreSlim _sync = new(1, 1);
     private CacheEntry? _cache;
     private bool _disposed;
@@ -25,11 +27,13 @@ public sealed class InMemorySecuritiesCacheService : ISecuritiesCacheService, ID
     public InMemorySecuritiesCacheService(
         ISecuritiesRepository repository,
         SecuritiesMetricsCollector metrics,
-        IClock clock)
+        IClock clock,
+        ObservabilityMetricsRegistry observabilityMetrics)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _observabilityMetrics = observabilityMetrics ?? throw new ArgumentNullException(nameof(observabilityMetrics));
     }
 
     public async Task<SecuritiesCacheResult> GetCachedAsync(CancellationToken ct)
@@ -43,6 +47,7 @@ public sealed class InMemorySecuritiesCacheService : ISecuritiesCacheService, ID
         if (snapshot is not null && now - snapshot.StoredAt < CacheTtl)
         {
             _metrics.RecordCacheHit();
+            _observabilityMetrics.RecordCacheHit();
             return snapshot.AsResult(fromCache: true);
         }
 
@@ -54,6 +59,7 @@ public sealed class InMemorySecuritiesCacheService : ISecuritiesCacheService, ID
             if (snapshot is not null && now - snapshot.StoredAt < CacheTtl)
             {
                 _metrics.RecordCacheHit();
+                _observabilityMetrics.RecordCacheHit();
                 return snapshot.AsResult(fromCache: true);
             }
 
@@ -64,6 +70,7 @@ public sealed class InMemorySecuritiesCacheService : ISecuritiesCacheService, ID
             snapshot = new CacheEntry(securities, json, etag, now);
             Volatile.Write(ref _cache, snapshot);
             _metrics.RecordCacheMiss();
+            _observabilityMetrics.RecordCacheMiss();
             return snapshot.AsResult(fromCache: false);
         }
         finally

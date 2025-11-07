@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace FIBRADIS.Api.Tests.Integration;
 
 public class HealthEndpointTests : IClassFixture<ApiApplicationFactory>
@@ -21,10 +24,13 @@ public class HealthEndpointTests : IClassFixture<ApiApplicationFactory>
 
         Assert.NotNull(payload);
         Assert.Equal("Healthy", payload!.Status);
-        Assert.NotNull(payload.Details);
+        Assert.False(string.IsNullOrWhiteSpace(payload.Uptime));
+        Assert.NotNull(payload.Checks);
+        Assert.NotEmpty(payload.Checks);
+        Assert.Contains(payload.Checks, check => check.Name.Equals("sqlserver", StringComparison.OrdinalIgnoreCase));
     }
 
-    private sealed record HealthResponseContract(string Status, Dictionary<string, HealthEntryContract> Details);
+    private sealed record HealthResponseContract(string Status, List<HealthEntryContract> Checks, string Uptime);
 
-    private sealed record HealthEntryContract(string Status, string? Description);
+    private sealed record HealthEntryContract(string Name, string Status, string? Description, string Duration);
 }

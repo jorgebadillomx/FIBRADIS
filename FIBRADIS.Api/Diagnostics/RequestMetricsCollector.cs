@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 
 namespace FIBRADIS.Api.Diagnostics;
@@ -38,6 +40,40 @@ public sealed class RequestMetricsCollector
         }
 
         return builder.ToString();
+    }
+
+    public RequestMetricsSnapshot CreateSnapshot()
+    {
+        var entries = _metrics
+            .ToArray()
+            .Select(pair =>
+            {
+                var aggregate = pair.Value.Snapshot();
+                return new RequestMetricEntry(pair.Key.Method, pair.Key.Path, pair.Key.StatusCode, aggregate.Count, aggregate.SumSeconds, aggregate.MaxSeconds);
+            })
+            .ToArray();
+
+        return new RequestMetricsSnapshot(Volatile.Read(ref _inFlight), entries);
+    }
+
+    public TimeSpan? TryGetAverageDuration(Func<RequestMetricEntry, bool> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        var entries = CreateSnapshot().Entries.Where(predicate).ToArray();
+        if (entries.Length == 0)
+        {
+            return null;
+        }
+
+        var totalCount = entries.Sum(static entry => entry.Count);
+        if (totalCount == 0)
+        {
+            return null;
+        }
+
+        var totalSeconds = entries.Sum(static entry => entry.SumSeconds);
+        var averageSeconds = totalSeconds / totalCount;
+        return TimeSpan.FromSeconds(averageSeconds);
     }
 
     private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
@@ -92,8 +128,12 @@ public sealed class RequestMetricsCollector
             } while (Interlocked.CompareExchange(ref _maxSeconds, seconds, initialMax) != initialMax);
         }
 
-        public RequestMetricSnapshot Snapshot() => new(Volatile.Read(ref _count), Volatile.Read(ref _sumSeconds), Volatile.Read(ref _maxSeconds));
+        public RequestMetricAggregate Snapshot() => new(Volatile.Read(ref _count), Volatile.Read(ref _sumSeconds), Volatile.Read(ref _maxSeconds));
     }
 
-    private readonly record struct RequestMetricSnapshot(long Count, double SumSeconds, double MaxSeconds);
+    private readonly record struct RequestMetricAggregate(long Count, double SumSeconds, double MaxSeconds);
 }
+
+public readonly record struct RequestMetricEntry(string Method, string Path, int StatusCode, long Count, double SumSeconds, double MaxSeconds);
+
+public sealed record RequestMetricsSnapshot(long InFlight, IReadOnlyList<RequestMetricEntry> Entries);

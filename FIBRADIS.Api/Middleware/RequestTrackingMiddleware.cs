@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using FIBRADIS.Api.Diagnostics;
+using FIBRADIS.Infrastructure.Observability.Metrics;
 
 namespace FIBRADIS.Api.Middleware;
 
@@ -10,12 +11,14 @@ public sealed class RequestTrackingMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<RequestTrackingMiddleware> _logger;
     private readonly RequestMetricsCollector _metrics;
+    private readonly ObservabilityMetricsRegistry _observabilityMetrics;
 
-    public RequestTrackingMiddleware(RequestDelegate next, ILogger<RequestTrackingMiddleware> logger, RequestMetricsCollector metrics)
+    public RequestTrackingMiddleware(RequestDelegate next, ILogger<RequestTrackingMiddleware> logger, RequestMetricsCollector metrics, ObservabilityMetricsRegistry observabilityMetrics)
     {
         _next = next;
         _logger = logger;
         _metrics = metrics;
+        _observabilityMetrics = observabilityMetrics;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -49,8 +52,19 @@ public sealed class RequestTrackingMiddleware
         finally
         {
             stopwatch.Stop();
-            _metrics.Observe(context.Request.Method, context.Request.Path.ToString(), context.Response.StatusCode, stopwatch.Elapsed);
-            _logger.LogInformation("Completed HTTP {Method} {Path} with {StatusCode} in {ElapsedMs} ms", context.Request.Method, context.Request.Path, context.Response.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
+            var method = context.Request.Method;
+            var path = context.Request.Path.ToString();
+            var statusCode = context.Response.StatusCode;
+            var elapsed = stopwatch.Elapsed;
+
+            _metrics.Observe(method, path, statusCode, elapsed);
+            _observabilityMetrics.RecordHttpRequest(method, path, statusCode, elapsed);
+            _logger.LogInformation(
+                "Completed HTTP {Method} {Path} with {StatusCode} in {durationMs} ms",
+                method,
+                context.Request.Path,
+                statusCode,
+                elapsed.TotalMilliseconds);
         }
     }
 
