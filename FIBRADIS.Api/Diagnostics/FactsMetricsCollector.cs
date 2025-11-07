@@ -1,16 +1,24 @@
+using System;
 using System.Collections.Concurrent;
 using FIBRADIS.Application.Abstractions;
+using FIBRADIS.Infrastructure.Observability.Metrics;
 
 namespace FIBRADIS.Api.Diagnostics;
 
 public sealed class FactsMetricsCollector : IFactsMetricsCollector
 {
+    private readonly ObservabilityMetricsRegistry _observabilityMetrics;
     private long _invocations;
     private long _failures;
     private long _fieldsTotal;
     private long _scoreSamples;
     private double _scoreAverage;
     private readonly ConcurrentQueue<double> _durations = new();
+
+    public FactsMetricsCollector(ObservabilityMetricsRegistry observabilityMetrics)
+    {
+        _observabilityMetrics = observabilityMetrics ?? throw new ArgumentNullException(nameof(observabilityMetrics));
+    }
 
     public void RecordInvocation()
     {
@@ -31,6 +39,8 @@ public sealed class FactsMetricsCollector : IFactsMetricsCollector
                 updated = ((current * (samples - 1)) + score) / samples;
             }
             while (Math.Abs(Interlocked.CompareExchange(ref _scoreAverage, updated, current) - current) > double.Epsilon);
+
+            _observabilityMetrics.SetFactsScoreAverage(updated);
         }
 
         RecordDuration(duration);

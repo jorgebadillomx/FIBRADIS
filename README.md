@@ -24,11 +24,22 @@ La API inicia por defecto en `http://localhost:5000`.
 | GET    | `/health`   | Reporte de salud en formato JSON. |
 | GET    | `/metrics`  | Métricas en formato Prometheus (latencias, solicitudes en vuelo). |
 
-## Observabilidad
+## Observabilidad avanzada
 
-* Cada petición recibe un `X-Request-Id` determinístico (se reutiliza si el cliente lo provee).
-* Los tiempos de respuesta se agregan en histogramas simples expuestos en `/metrics`.
-* CORS está abierto únicamente en ambiente de desarrollo.
+* **Módulo**: `FIBRADIS.Api/Monitoring` + `FIBRADIS.Infrastructure/Observability`.
+* **Endpoints**:
+  * `GET /health` → reporte JSON con `status`, lista de `checks` y `uptime` formateado.
+  * `GET /metrics` → exportador Prometheus (`OpenTelemetry.Exporter.Prometheus.AspNetCore`).
+* **Componentes**:
+  * Health checks con sub-estados: `sqlserver`, `hangfire`, `storage_documents`, `api_public`, `api_private` (timeouts 5 s, caché local 10 s, refresh 30 s).
+  * Métricas instrumentadas con `ObservabilityMetricsRegistry` (`http_requests_total`, `http_request_duration_seconds`, `jobs_total`, `jobs_failures_total`, `jobs_duration_seconds`, `db_query_duration_seconds`, `api_cache_hits_total`, `api_cache_miss_total`, `portfolio_replacements_total`, `dividends_verified_ratio`, `facts_score_avg`, `system_uptime_seconds`).
+  * Logging estructurado con Serilog JSON (consola en dev, archivo diario en prod) y enriquecedores `requestId`, `jobRunId`, `userId`, `queue`, `durationMs`, `sourceContext`.
+  * Tracing con OpenTelemetry (`AspNetCore`, `HttpClient`) + export OTLP (gRPC) y Prometheus para métricas.
+  * Alertas recomendadas para AlertManager (`jobs_failures_total/jobs_total > 0.1`, `http_request_duration_seconds_p95 > 1s`, `dividends_verified_ratio < 0.8`, `facts_score_avg < 70`, `system_uptime_seconds == 0`).
+  * Dashboards sugeridos: **API Overview**, **Jobs Performance**, **Distributions & Yields**, **Facts Quality**, **Portfolios** (Grafana + Tempo/Loki).
+  * Auditoría técnica: los eventos se enriquecen con `CorrelationLogEnricher` para poblar `SystemAudit` (servicio ↔ acción ↔ resultado) correlacionado con `RequestId/JobRunId`.
+* **Dependencias**: Prometheus, Grafana, Loki/Tempo, AlertManager.
+* **Estado**: ✅ Implementado y validado.
 
 ## Front público — Banner de precios
 
