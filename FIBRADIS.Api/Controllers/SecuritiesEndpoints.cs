@@ -22,7 +22,7 @@ public static class SecuritiesEndpoints
         app.MapGet("/v1/securities", HandleGetSecuritiesAsync)
             .WithName("GetSecurities")
             .WithTags("Securities")
-            .RequireRateLimiting("SecuritiesPublicPolicy");
+            .RequireAuthorization("Viewer");
     }
 
     internal static async Task<IResult> HandleGetSecuritiesAsync(

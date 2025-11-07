@@ -30,6 +30,12 @@ public sealed class ObservabilityMetricsRegistry : IDisposable
         ApiCacheHitsTotal = _meter.CreateCounter<long>("api_cache_hits_total", unit: "hits", description: "Número de aciertos de caché en API pública.");
         ApiCacheMissTotal = _meter.CreateCounter<long>("api_cache_miss_total", unit: "miss", description: "Número de misses de caché en API pública.");
         PortfolioReplacementsTotal = _meter.CreateCounter<long>("portfolio_replacements_total", unit: "operations", description: "Número de cargas de portafolio procesadas.");
+        AuthLoginsTotal = _meter.CreateCounter<long>("auth_logins_total", unit: "events", description: "Total de autenticaciones exitosas.");
+        AuthRefreshTotal = _meter.CreateCounter<long>("auth_refresh_total", unit: "events", description: "Total de refresh tokens emitidos.");
+        AuthFailedTotal = _meter.CreateCounter<long>("auth_failed_total", unit: "events", description: "Total de autenticaciones fallidas.");
+        RateLimitBlockedTotal = _meter.CreateCounter<long>("rate_limit_blocked_total", unit: "requests", description: "Solicitudes bloqueadas por rate limiting.");
+        ByokKeysActiveTotal = _meter.CreateCounter<long>("byok_keys_active_total", unit: "keys", description: "Claves BYO registradas activas.");
+        ByokUsageTokensTotal = _meter.CreateCounter<long>("byok_usage_tokens_total", unit: "tokens", description: "Tokens consumidos mediante BYO Key.");
 
         _meter.CreateObservableGauge(
             "dividends_verified_ratio",
@@ -59,6 +65,12 @@ public sealed class ObservabilityMetricsRegistry : IDisposable
     public Counter<long> ApiCacheHitsTotal { get; }
     public Counter<long> ApiCacheMissTotal { get; }
     public Counter<long> PortfolioReplacementsTotal { get; }
+    public Counter<long> AuthLoginsTotal { get; }
+    public Counter<long> AuthRefreshTotal { get; }
+    public Counter<long> AuthFailedTotal { get; }
+    public Counter<long> RateLimitBlockedTotal { get; }
+    public Counter<long> ByokKeysActiveTotal { get; }
+    public Counter<long> ByokUsageTokensTotal { get; }
 
     public void SetDividendsVerifiedRatio(double ratio)
     {

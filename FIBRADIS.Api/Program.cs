@@ -8,27 +8,29 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.RateLimiting;
-using FIBRADIS.Api.Authentication;
 using FIBRADIS.Api.Controllers;
 using FIBRADIS.Api.Diagnostics;
 using FIBRADIS.Api.Infrastructure;
 using FIBRADIS.Api.Middleware;
 using FIBRADIS.Api.Models;
 using FIBRADIS.Api.Monitoring;
+using FIBRADIS.Api.Security;
 using FIBRADIS.Application.Abstractions;
 using FIBRADIS.Application.Interfaces;
+using FIBRADIS.Application.Interfaces.Auth;
 using FIBRADIS.Application.Models;
 using FIBRADIS.Application.Ports;
 using FIBRADIS.Application.Services;
+using FIBRADIS.Application.Services.Auth;
 using FIBRADIS.Infrastructure.Observability;
 using FIBRADIS.Infrastructure.Observability.Metrics;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Exporter.Prometheus.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -84,78 +86,56 @@ builder.Services.AddSingleton<ISecuritiesCacheService>(sp =>
     return cache;
 });
 
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = FakeJwtAuthenticationHandler.SchemeName;
-    options.DefaultChallengeScheme = FakeJwtAuthenticationHandler.SchemeName;
-}).AddScheme<AuthenticationSchemeOptions, FakeJwtAuthenticationHandler>(FakeJwtAuthenticationHandler.SchemeName, _ => { });
+builder.Services.AddControllers();
+
+builder.Services.AddOptions<JwtOptions>()
+    .Bind(builder.Configuration.GetSection("Jwt"))
+    .ValidateDataAnnotations();
+
+builder.Services.AddOptions<SecretEncryptionOptions>()
+    .Bind(builder.Configuration.GetSection("Secrets"))
+    .ValidateDataAnnotations();
+
+builder.Services.AddSingleton<ISecurityMetricsRecorder, SecurityMetricsRecorder>();
+builder.Services.AddSingleton<IRefreshTokenStore, InMemoryRefreshTokenStore>();
+builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+builder.Services.AddSingleton<IRateLimiterService, MemoryRateLimiterService>();
+builder.Services.AddSingleton<ISecretService, AesSecretService>();
+builder.Services.AddSingleton<IAuditService, InMemoryAuditService>();
+builder.Services.AddSingleton<ILLMUsageTracker, InMemoryLlmUsageTracker>();
+builder.Services.AddSingleton<IPasswordHasher<UserAccount>, PasswordHasher<UserAccount>>();
+builder.Services.AddSingleton<IUserStore, InMemoryUserStore>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer((serviceProvider, options) =>
+    {
+        var jwtOptions = serviceProvider.GetRequiredService<IOptions<JwtOptions>>().Value;
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = signingKey,
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwtOptions.Audience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+    });
 
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy("Viewer", policy =>
+    {
+        policy.RequireRole("viewer", "user", "admin");
+    });
     options.AddPolicy("UserOrHigher", policy =>
     {
-        policy.RequireAuthenticatedUser();
-        policy.RequireAssertion(context =>
-        {
-            var role = context.User.FindFirstValue(ClaimTypes.Role);
-            return string.Equals(role, "user", StringComparison.OrdinalIgnoreCase)
-                   || string.Equals(role, "admin", StringComparison.OrdinalIgnoreCase)
-                   || string.Equals(role, "superuser", StringComparison.OrdinalIgnoreCase);
-        });
+        policy.RequireRole("user", "admin");
     });
-});
-
-builder.Services.AddRateLimiter(options =>
-{
-    options.OnRejected = async (context, token) =>
-    {
-        var requestId = context.HttpContext.Features.Get<RequestTrackingFeature>()?.RequestId
-                        ?? context.HttpContext.TraceIdentifier
-                        ?? Guid.NewGuid().ToString("N");
-
-        var metrics = context.HttpContext.RequestServices.GetRequiredService<UploadMetricsCollector>();
-        metrics.RecordFailure(TimeSpan.Zero);
-
-        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        context.HttpContext.Response.ContentType = "application/json";
-
-        var problem = CreateProblemDetails(
-            context.HttpContext,
-            StatusCodes.Status429TooManyRequests,
-            "RATE_LIMIT_EXCEEDED",
-            "Se excedió el límite de cargas permitido.",
-            requestId);
-
-        await context.HttpContext.Response.WriteAsync(JsonSerializer.Serialize(problem), token).ConfigureAwait(false);
-    };
-
-    options.AddPolicy("UploadRatePolicy", httpContext =>
-    {
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var partitionKey = string.IsNullOrWhiteSpace(userId) ? "anonymous" : userId!;
-
-        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromHours(1),
-            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-            QueueLimit = 0
-        });
-    });
-
-    options.AddPolicy("SecuritiesPublicPolicy", httpContext =>
-    {
-        var remoteIp = httpContext.Connection.RemoteIpAddress?.ToString();
-        var partitionKey = string.IsNullOrWhiteSpace(remoteIp) ? "anonymous" : remoteIp!;
-
-        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 60,
-            Window = TimeSpan.FromMinutes(1),
-            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-            QueueLimit = 0
-        });
-    });
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("admin"));
 });
 
 builder.Services.AddHealthChecks()
@@ -169,9 +149,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<RequestTrackingMiddleware>();
+app.UseMiddleware<JwtAuthMiddleware>();
 app.UseAuthentication();
-app.UseRateLimiter();
+app.UseMiddleware<RateLimitMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<AuditMiddleware>();
 
 app.MapGet("/v1/ping", (HttpContext context) =>
 {
@@ -182,6 +164,8 @@ app.MapGet("/v1/ping", (HttpContext context) =>
 
     return Results.Json(new PingResponse("pong", requestId));
 });
+
+app.MapControllers();
 
 app.MapSecuritiesEndpoints();
 
@@ -417,8 +401,7 @@ app.MapPost("/v1/portfolio/upload",
             return Results.Json(problem, statusCode: StatusCodes.Status500InternalServerError);
         }
     })
-    .RequireAuthorization("UserOrHigher")
-    .RequireRateLimiting("UploadRatePolicy");
+    .RequireAuthorization("UserOrHigher");
 
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
