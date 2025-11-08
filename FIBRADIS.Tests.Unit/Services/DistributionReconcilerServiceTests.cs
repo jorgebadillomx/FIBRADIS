@@ -492,6 +492,14 @@ public sealed class DistributionReconcilerServiceTests
         {
             EnqueuedJobs.Add((userId, reason, requestedAt));
         }
+
+        public void EnqueueNewsIngestion()
+        {
+        }
+
+        public void EnqueueSummarize(string parserVersion)
+        {
+        }
     }
 
     private sealed class FakeReconcileMetricsCollector : IDistributionReconcileMetricsCollector

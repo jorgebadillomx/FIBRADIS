@@ -412,6 +412,14 @@ public sealed class PortfolioReplaceServiceIntegrationTests
         {
             EnqueuedJobs.Add((userId, reason, requestedAt));
         }
+
+        public void EnqueueNewsIngestion()
+        {
+        }
+
+        public void EnqueueSummarize(string parserVersion)
+        {
+        }
     }
 
     private sealed class TestClock : IClock

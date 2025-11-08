@@ -5,4 +5,6 @@ using System;
 public interface IJobScheduler
 {
     void EnqueuePortfolioRecalc(string userId, string reason, DateTimeOffset requestedAt);
+    void EnqueueNewsIngestion();
+    void EnqueueSummarize(string parserVersion);
 }
