@@ -15,6 +15,7 @@ public sealed class ObservabilityMetricsRegistry : IDisposable
     private readonly ISystemUptimeProvider _uptimeProvider;
     private double _dividendsVerifiedRatio;
     private double _factsScoreAverage;
+    private long _adminActiveUsers;
 
     public ObservabilityMetricsRegistry(ISystemUptimeProvider uptimeProvider)
     {
@@ -36,6 +37,8 @@ public sealed class ObservabilityMetricsRegistry : IDisposable
         RateLimitBlockedTotal = _meter.CreateCounter<long>("rate_limit_blocked_total", unit: "requests", description: "Solicitudes bloqueadas por rate limiting.");
         ByokKeysActiveTotal = _meter.CreateCounter<long>("byok_keys_active_total", unit: "keys", description: "Claves BYO registradas activas.");
         ByokUsageTokensTotal = _meter.CreateCounter<long>("byok_usage_tokens_total", unit: "tokens", description: "Tokens consumidos mediante BYO Key.");
+        AdminAuditEntriesTotal = _meter.CreateCounter<long>("admin_audit_entries_total", unit: "events", description: "Total de eventos de auditoría generados por acciones administrativas.");
+        AdminSettingsChangesTotal = _meter.CreateCounter<long>("admin_settings_changes_total", unit: "changes", description: "Número de cambios de configuración realizados desde el panel admin.");
 
         _meter.CreateObservableGauge(
             "dividends_verified_ratio",
@@ -52,6 +55,11 @@ public sealed class ObservabilityMetricsRegistry : IDisposable
             () => new[] { new Measurement<double>(_uptimeProvider.GetUptime().TotalSeconds) },
             "s",
             "Tiempo activo del servidor en segundos.");
+        _meter.CreateObservableGauge(
+            "admin_users_total",
+            () => new[] { new Measurement<long>(Interlocked.Read(ref _adminActiveUsers)) },
+            "users",
+            "Cantidad de usuarios activos administrados desde el panel.");
 
         SetDividendsVerifiedRatio(1d);
     }
@@ -71,6 +79,8 @@ public sealed class ObservabilityMetricsRegistry : IDisposable
     public Counter<long> RateLimitBlockedTotal { get; }
     public Counter<long> ByokKeysActiveTotal { get; }
     public Counter<long> ByokUsageTokensTotal { get; }
+    public Counter<long> AdminAuditEntriesTotal { get; }
+    public Counter<long> AdminSettingsChangesTotal { get; }
 
     public void SetDividendsVerifiedRatio(double ratio)
     {
@@ -130,6 +140,21 @@ public sealed class ObservabilityMetricsRegistry : IDisposable
     public void RecordPortfolioReplacement()
     {
         PortfolioReplacementsTotal.Add(1);
+    }
+
+    public void SetAdminActiveUsers(long activeUsers)
+    {
+        Interlocked.Exchange(ref _adminActiveUsers, activeUsers);
+    }
+
+    public void IncrementAdminAuditEntries()
+    {
+        AdminAuditEntriesTotal.Add(1);
+    }
+
+    public void IncrementAdminSettingsChanges()
+    {
+        AdminSettingsChangesTotal.Add(1);
     }
 
     public void Dispose()
