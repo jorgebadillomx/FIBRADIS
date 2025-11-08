@@ -22,6 +22,7 @@ using FIBRADIS.Application.Models;
 using FIBRADIS.Application.Ports;
 using FIBRADIS.Application.Services.Admin;
 using FIBRADIS.Application.Services;
+using FIBRADIS.Application.Services.Models;
 using FIBRADIS.Application.Services.Auth;
 using FIBRADIS.Infrastructure.Observability;
 using FIBRADIS.Infrastructure.Observability.Metrics;
@@ -73,6 +74,8 @@ builder.Services.AddSingleton<IFactsRepository, InMemoryFactsRepository>();
 builder.Services.AddSingleton<IPdfTextExtractor, SimplePdfTextExtractor>();
 builder.Services.AddSingleton<IOcrProvider, InMemoryOcrProvider>();
 builder.Services.AddSingleton<IJobScheduler, NoopJobScheduler>();
+builder.Services.AddSingleton<ISummaryRepository, InMemorySummaryRepository>();
+builder.Services.AddSingleton<INewsRepository, InMemoryNewsRepository>();
 builder.Services.AddSingleton<InMemorySecuritiesRepository>();
 builder.Services.AddSingleton<ISecuritiesRepository>(sp => sp.GetRequiredService<InMemorySecuritiesRepository>());
 builder.Services.AddSingleton<ISecurityRepository>(sp => sp.GetRequiredService<InMemorySecuritiesRepository>());
@@ -106,6 +109,8 @@ builder.Services.AddSingleton<InMemoryAuditService>();
 builder.Services.AddSingleton<IAuditService>(sp => sp.GetRequiredService<InMemoryAuditService>());
 builder.Services.AddSingleton<IAuditLogReader>(sp => sp.GetRequiredService<InMemoryAuditService>());
 builder.Services.AddSingleton<ILLMUsageTracker, InMemoryLlmUsageTracker>();
+builder.Services.AddSingleton<ISummarizeMetricsCollector, SummarizeMetricsCollector>();
+builder.Services.AddSingleton<INewsMetricsCollector, NewsMetricsCollector>();
 builder.Services.AddSingleton<IPasswordHasher<UserAccount>, PasswordHasher<UserAccount>>();
 builder.Services.AddSingleton<InMemoryUserStore>();
 builder.Services.AddSingleton<IUserStore>(sp => sp.GetRequiredService<InMemoryUserStore>());
@@ -114,6 +119,12 @@ builder.Services.AddSingleton<ISystemSettingsStore, InMemorySystemSettingsStore>
 builder.Services.AddSingleton<IAdminMetricsRecorder, AdminMetricsRecorder>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddSingleton<ISummarizeService, SummarizeService>();
+builder.Services.AddSingleton<INewsClassifier, NewsClassifier>();
+builder.Services.AddSingleton<INewsIngestService, NewsIngestService>();
+builder.Services.AddSingleton<INewsCuratorService, NewsCuratorService>();
+builder.Services.AddOptions<SummarizeServiceOptions>().Bind(builder.Configuration.GetSection("Summarize"));
+builder.Services.AddOptions<NewsClassifierOptions>().Bind(builder.Configuration.GetSection("NewsClassifier"));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer((serviceProvider, options) =>

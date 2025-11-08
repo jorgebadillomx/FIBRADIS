@@ -9,4 +9,14 @@ public sealed class NoopJobScheduler : IJobScheduler
     {
         // No-op placeholder for future background job integration.
     }
+
+    public void EnqueueNewsIngestion()
+    {
+        // No-op placeholder.
+    }
+
+    public void EnqueueSummarize(string parserVersion)
+    {
+        // No-op placeholder.
+    }
 }

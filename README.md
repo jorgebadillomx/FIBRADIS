@@ -64,6 +64,24 @@ La API inicia por defecto en `http://localhost:5000`.
   * Integración: flujo login→refresh→logout, acceso protegido con JWT, `/v1/securities` autenticado.
 * **Estado**: ✅ Implementado y probado.
 
+## Resumidor LLM y Curaduría de Noticias
+
+* **Ubicación**:
+  * Jobs: `FIBRADIS.Application/Jobs/SummarizeJob.cs`, `FIBRADIS.Application/Jobs/NewsJob.cs`
+  * Servicios: `FIBRADIS.Application/Services/SummarizeService.cs`, `FIBRADIS.Application/Services/NewsIngestService.cs`, `FIBRADIS.Application/Services/NewsCuratorService.cs`
+  * API pública: `FIBRADIS.Api/Controllers/NewsController.cs`
+* **Pipeline**: `download → parse → facts → summarize → publish(news)` con disparo diario o bajo demanda al cargar un documento.
+* **Características clave**:
+  * Generación de resúmenes públicos y privados con BYO Key validada, control de cuotas (`RemainingTokenQuota`) y bitácora en `ILLMUsageTracker`.
+  * Ingesta de noticias externas (RSS/API) con deduplicación por hash, clasificación heurística por ticker/sector/sentimiento y almacenamiento `pending` para curaduría.
+  * Curaduría admin (`NewsCuratorService`) para aprobar, editar o descartar noticias antes de publicarlas en `/v1/news` (cache 60 s) y auditoría (`summarize.generated`, `news.curated`).
+  * Seguridad BYO (Prompt 11), métricas de consumo (`summarize_jobs_total`, `summarize_tokens_used_total`, `news_ingested_total`, `news_pending_total`, `news_published_total`) y alertas por cuota >90 % o backlog >50.
+* **Entidades**: `Summaries`, `News`, `FactsHistory`, `LLMUsageLogs` (registro de tokens/costo por proveedor).
+* **Tests**:
+  * Unitarias: resúmenes con BYO Key y registro de tokens, deduplicación de noticias, clasificación por ticker/sentimiento, curaduría admin.
+  * Integración: pipeline completo (facts→summaries→news), endpoints `/v1/news` y auditoría/alertas.
+* **Estado**: ✅ Implementado y probado.
+
 ## Panel Admin — Usuarios, Roles y Settings
 
 * **Ubicación**:

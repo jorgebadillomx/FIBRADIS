@@ -91,6 +91,8 @@ public sealed class PortfolioReplaceServiceTests
 
         var jobScheduler = new Mock<IJobScheduler>(MockBehavior.Strict);
         jobScheduler.Setup(scheduler => scheduler.EnqueuePortfolioRecalc("user-1", "upload", It.IsAny<DateTimeOffset>()));
+        jobScheduler.Setup(scheduler => scheduler.EnqueueNewsIngestion());
+        jobScheduler.Setup(scheduler => scheduler.EnqueueSummarize(It.IsAny<string>()));
 
         var service = CreateService(repository, securityCatalog, distributionReader, jobScheduler);
 
