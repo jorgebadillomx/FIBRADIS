@@ -59,6 +59,7 @@ public sealed class AuthService : IAuthService
 
         await _refreshTokenStore.SaveAsync(refreshToken, cancellationToken).ConfigureAwait(false);
         var roles = await _userStore.GetRolesAsync(user.Id, cancellationToken).ConfigureAwait(false);
+        await _userStore.UpdateLastLoginAsync(user.Id, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
 
         _metrics.RecordAuthLogin();
         await _auditService.RecordAsync(new AuditEntry(

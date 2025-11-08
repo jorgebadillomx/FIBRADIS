@@ -64,6 +64,31 @@ La API inicia por defecto en `http://localhost:5000`.
   * Integración: flujo login→refresh→logout, acceso protegido con JWT, `/v1/securities` autenticado.
 * **Estado**: ✅ Implementado y probado.
 
+## Panel Admin — Usuarios, Roles y Settings
+
+* **Ubicación**:
+  * API: `FIBRADIS.Api/Controllers/AdminController.cs`
+  * Servicios: `FIBRADIS.Application/Services/Admin`
+  * Frontend SPA: `frontend/admin`
+* **Objetivo**: ofrecer un panel `/admin` exclusivo para rol `admin` con gestión de usuarios, auditoría completa y configuración operativa (LLM, horarios y límites de seguridad).
+* **Endpoints clave** (`/v1/admin/**`, JWT + rate limit 20 req/min + auditoría automática):
+  * `GET /v1/admin/users` — listado paginado, búsqueda.
+  * `POST /v1/admin/users` — alta con rol y password inicial.
+  * `PUT /v1/admin/users/{id}` — edición de correo/rol/estado (solo admin eleva roles).
+  * `DELETE /v1/admin/users/{id}` — desactivación segura.
+  * `GET /v1/admin/audit` — consulta filtrable de `AuditLogs`.
+  * `GET|PUT /v1/admin/settings` — lectura/actualización de `SystemSettings`.
+* **Observabilidad y alertas**:
+  * Métricas en `ObservabilityMetricsRegistry`: `admin_users_total`, `admin_audit_entries_total`, `admin_settings_changes_total`.
+  * `AdminMetricsRecorder` registra cambios de rol (alerta >3 en 1 h) y modo mantenimiento (log → Slack).
+* **SPA Admin** (React + shadcn-like components):
+  * Rutas protegidas: `/admin/users`, `/admin/audit`, `/admin/settings` con navegación lateral.
+  * Componentes clave: `UsersTable`, `UserEditModal`, `AuditLogTable`, `SettingsForm` (paginación, filtros, feedback visual ✔/❌).
+  * Estado compartido con React Query (`frontend/admin/src/hooks/useAdminApi.ts`).
+* **Pruebas**:
+  * Unitarias (`AdminServiceTests`): creación/edición, política de roles, auditoría, settings y filtros de logs.
+* **Estado**: ✅ Implementado y probado.
+
 ## Front público — Banner de precios
 
 * **Ubicación**: `frontend/public/components/BannerTicker.tsx`.

@@ -10,4 +10,5 @@ public interface IUserStore
     Task<UserAccount?> FindByUsernameAsync(string username, CancellationToken cancellationToken);
     Task<UserAccount?> FindByIdAsync(string userId, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<string>> GetRolesAsync(string userId, CancellationToken cancellationToken);
+    Task UpdateLastLoginAsync(string userId, DateTime timestampUtc, CancellationToken cancellationToken);
 }
