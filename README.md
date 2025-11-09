@@ -64,6 +64,31 @@ La API inicia por defecto en `http://localhost:5000`.
   * Integración: flujo login→refresh→logout, acceso protegido con JWT, `/v1/securities` autenticado.
 * **Estado**: ✅ Implementado y probado.
 
+## Pipeline de Reportes (Descubrimiento → Descarga → Parse → Facts)
+
+* **Ubicación**:
+  * Jobs: `FIBRADIS.Application/Jobs/ReportsJob.cs`, `DownloadJob.cs`, `ParseJob.cs`, `FactsJob.cs`.
+  * Servicios: `FIBRADIS.Application/Services/Documents/**`.
+  * Infraestructura en memoria: `FIBRADIS.Api/Infrastructure/InMemoryDocumentRepository.cs`, `InMemoryDocumentDiscoveryService.cs`, `InMemoryDocumentStorage.cs`.
+* **Objetivo**: automatizar el ciclo completo para encontrar reportes oficiales de FIBRAs, descargar binarios, parsear texto/tablas, clasificar el documento y extraer KPIs normalizados para el catálogo.
+* **Flujo**:
+  * `reports` → respeta `robots.txt`, deduplica por URL en ventana de 30 días y encola la descarga.
+  * `download` → realiza HTTP GET con límite de 20 MB, calcula hash SHA-256, almacena binario y evita duplicados por hash.
+  * `parse` → extrae texto/tablas (con OCR de respaldo), clasifica tipo/ticker/periodo, persiste `DocumentText` y actualiza estado.
+  * `facts` → invoca `IPdfFactsParserService`, guarda `DocumentFacts`/`FactsHistory`, actualiza `Securities` y dispara `PortfolioRecalcJob(reason="kpi")` cuando el score ≥ 70.
+* **Versionado e idempotencia**:
+  * Descubrimiento deduplica por URL y conserva `Provenance` (referer, crawl path, `robotsOk`).
+  * Descarga mantiene versiones por hash; un hash repetido marca el documento como `superseded`.
+  * Parseo controla reintentos por `(Hash, ParserVersion)` y conserva métricas (`ocrUsed`, `pages`).
+  * Facts utiliza `(DocumentId, ParserVersion)` y delega el versionado a `IFactsRepository` (`RequiresReview`, `IsSuperseded`).
+* **Cumplimiento**: `IRobotsPolicy` administra el respeto a `robots.txt` y cooldown por dominio; User-Agent `FIBRADISBot (+contacto)`; almacenamiento mínimo necesario (hash + metadatos).
+* **Observabilidad**: contadores/histogramas específicos (`reports_discovered_total`, `download_bytes_total`, `parse_duration_seconds`, `facts_score_total`) expuestos vía `DocumentPipelineMetricsCollector` y registrados en `ObservabilityMetricsRegistry`.
+* **Alertas recomendadas**: `download_duplicates_total` creciente, `parse_duration_seconds_p95` elevado, `facts_score_total` decreciente o backlog en `facts`.
+* **Tests**:
+  * Unitarios: descubrimiento (robots/dedupe), descarga (hash duplicado), parseo (OCR + clasificación) y facts (actualiza KPIs / recalc en cola).
+  * Integración: cobertura end-to-end disponible vía servicios en memoria (`InMemoryDocumentDiscoveryService` + jobs Hangfire) para validar reprocesos y bandeja de revisión.
+* **Estado**: ✅ Implementado (alineado con Prompt 6 y Prompt 10).
+
 ## Resumidor LLM y Curaduría de Noticias
 
 * **Ubicación**:

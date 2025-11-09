@@ -18,6 +18,23 @@ public sealed class InMemoryDocumentStorage : IDocumentStorage
         throw new KeyNotFoundException($"Document {documentId} was not found in storage.");
     }
 
+    public Task SaveDocumentAsync(DocumentContent document, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        _documents[document.DocumentId] = Clone(document);
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> ExistsAsync(Guid documentId, string hash, CancellationToken ct)
+    {
+        if (_documents.TryGetValue(documentId, out var document))
+        {
+            return Task.FromResult(string.Equals(document.Hash, hash, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Task.FromResult(false);
+    }
+
     public void AddOrUpdate(DocumentContent content)
     {
         ArgumentNullException.ThrowIfNull(content);
