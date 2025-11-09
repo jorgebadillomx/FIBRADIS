@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using FIBRADIS.Application.Abstractions;
+using FIBRADIS.Application.Interfaces;
 using FIBRADIS.Application.Models;
 using FIBRADIS.Application.Models.Documents;
 using FIBRADIS.Application.Ports;
