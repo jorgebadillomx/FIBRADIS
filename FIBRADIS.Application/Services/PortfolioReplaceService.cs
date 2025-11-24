@@ -261,13 +261,13 @@ public sealed class PortfolioReplaceService : IPortfolioReplaceService
             var invested = Round(sanitizedQty * sanitizedAvgCost);
 
             priceMap.TryGetValue(ticker, out var price);
-            var marketPrice = price.HasValue ? Round(price.Value) : null;
+            decimal? marketPrice = price.HasValue ? Round(price.Value) : null;
             var value = marketPrice.HasValue ? Round(marketPrice.Value * sanitizedQty) : 0m;
             var pnl = Round(value - invested);
 
             yieldMap.TryGetValue(ticker, out var yieldInfo);
-            var yieldTtm = yieldInfo.YieldTtm.HasValue ? Round(yieldInfo.YieldTtm.Value) : null;
-            var yieldForward = yieldInfo.YieldForward.HasValue ? Round(yieldInfo.YieldForward.Value) : null;
+            decimal? yieldTtm = yieldInfo.YieldTtm.HasValue ? Round(yieldInfo.YieldTtm.Value) : null;
+            decimal? yieldForward = yieldInfo.YieldForward.HasValue ? Round(yieldInfo.YieldForward.Value) : null;
 
             totalInvested += invested;
             totalValue += value;
