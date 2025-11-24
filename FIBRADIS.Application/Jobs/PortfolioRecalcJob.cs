@@ -344,8 +344,8 @@ public sealed class PortfolioRecalcJob
 
         var orderedValuations = valuations.OrderBy(snapshot => snapshot.AsOf).ToList();
         var flows = cashflows
-            .Select(flow => (flow.Timestamp, Amount: -flow.Amount))
-            .Concat(new[] { (orderedValuations[^1].AsOf, orderedValuations[^1].Value) })
+            .Select(flow => (Timestamp: flow.Timestamp, Amount: -flow.Amount))
+            .Concat(new[] { (Timestamp: orderedValuations[^1].AsOf, Amount: orderedValuations[^1].Value) })
             .OrderBy(tuple => tuple.Timestamp)
             .ToList();
 
