@@ -592,7 +592,9 @@ public sealed class PortfolioFileParser : IPortfolioFileParser
             return value;
         }
 
-        return cell.DataType.Value switch
+        var dataType = cell.DataType.Value;
+
+        return dataType switch
         {
             CellValues.SharedString => GetSharedString(workbookPart, value),
             CellValues.InlineString => cell.InnerText,
