@@ -315,7 +315,7 @@ public class PortfolioFileParserTests
     {
         return new Cell
         {
-            DataType = CellValues.InlineString,
+            DataType = new EnumValue<CellValues>(CellValues.InlineString),
             InlineString = new InlineString(new Text(value))
         };
     }
