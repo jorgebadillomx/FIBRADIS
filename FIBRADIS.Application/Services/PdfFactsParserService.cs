@@ -115,12 +115,12 @@ public sealed class PdfFactsParserService : IPdfFactsParserService
             var periodTag = DetectPeriod(text, document.DocumentDate);
             var extracted = ExtractMetrics(text, tables);
 
-            var nav = extracted.Nav is null ? null : Round(extracted.Nav.Value);
+            decimal? nav = extracted.Nav is null ? null : Round(extracted.Nav.Value);
             var noi = NormalizeMillions(extracted.Noi);
             var affo = NormalizeMillions(extracted.Affo);
             var ltv = NormalizePercentage(extracted.Ltv);
             var occupancy = NormalizePercentage(extracted.Occupancy);
-            var dividends = extracted.Dividends is null ? null : Round(extracted.Dividends.Value);
+            decimal? dividends = extracted.Dividends is null ? null : Round(extracted.Dividends.Value);
 
             var score = CalculateScore(extracted.FoundCount, confidence);
             var parsedAt = _clock.UtcNow;

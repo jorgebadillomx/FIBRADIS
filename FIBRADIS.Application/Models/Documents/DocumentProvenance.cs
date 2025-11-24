@@ -8,5 +8,5 @@ public sealed record DocumentProvenance
     public string? CrawlPath { get; init; }
     public bool RobotsOk { get; init; }
     public string? ETag { get; init; }
-    public IDictionary<string, string> AdditionalMetadata { get; init; } = new Dictionary<string, string>();
+    public IReadOnlyDictionary<string, string> AdditionalMetadata { get; init; } = new Dictionary<string, string>();
 }
