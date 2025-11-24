@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using FIBRADIS.Application.Interfaces;
 using FIBRADIS.Application.Models;
 using FIBRADIS.Application.Models.Documents;
 using FIBRADIS.Application.Ports;
