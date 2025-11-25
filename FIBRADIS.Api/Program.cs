@@ -32,7 +32,6 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Exporter.Prometheus.AspNetCore;
 
@@ -141,9 +140,9 @@ builder.Services.AddOptions<SummarizeServiceOptions>().Bind(builder.Configuratio
 builder.Services.AddOptions<NewsClassifierOptions>().Bind(builder.Configuration.GetSection("NewsClassifier"));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer((serviceProvider, options) =>
+    .AddJwtBearer(options =>
     {
-        var jwtOptions = serviceProvider.GetRequiredService<IOptions<JwtOptions>>().Value;
+        var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
         options.TokenValidationParameters = new TokenValidationParameters
         {
