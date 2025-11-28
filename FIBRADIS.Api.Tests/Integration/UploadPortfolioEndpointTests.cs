@@ -281,8 +281,8 @@ public class UploadPortfolioEndpointTests : IClassFixture<ApiApplicationFactory>
         {
             row.AppendChild(new Cell
             {
-                DataType = new EnumValue<CellValues>(CellValues.String),
-                CellValue = new CellValue(value)
+                DataType = CellValues.InlineString,
+                InlineString = new InlineString(new Text(value))
             });
         }
 
