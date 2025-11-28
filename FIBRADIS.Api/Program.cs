@@ -462,10 +462,6 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
 app.Run();
 
-public partial class Program
-{
-}
-
 static ProblemDetails CreateProblemDetails(
     HttpContext context,
     int statusCode,
@@ -494,4 +490,8 @@ static ProblemDetails CreateProblemDetails(
     }
 
     return problem;
+}
+
+public partial class Program
+{
 }
