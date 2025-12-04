@@ -33,7 +33,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
-using OpenTelemetry.Exporter.Prometheus.AspNetCore;
+using OpenTelemetry.Metrics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -292,7 +292,7 @@ app.MapPost("/v1/portfolio/upload",
             return Results.Json(problem, statusCode: StatusCodes.Status415UnsupportedMediaType);
         }
 
-        await using var fileStream = file.OpenReadStream(MaxFileSizeBytes);
+        await using var fileStream = file.OpenReadStream();
         await using var memoryStream = new MemoryStream();
         await fileStream.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
         memoryStream.Position = 0;
@@ -462,10 +462,6 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
 app.Run();
 
-public partial class Program
-{
-}
-
 static ProblemDetails CreateProblemDetails(
     HttpContext context,
     int statusCode,
@@ -494,4 +490,8 @@ static ProblemDetails CreateProblemDetails(
     }
 
     return problem;
+}
+
+public partial class Program
+{
 }

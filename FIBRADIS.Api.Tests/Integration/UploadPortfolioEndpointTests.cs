@@ -276,15 +276,15 @@ public class UploadPortfolioEndpointTests : IClassFixture<ApiApplicationFactory>
 
     private static Row CreateRow(params string[] values)
     {
-        var row = new Row();
-        foreach (var value in values)
-        {
-            row.AppendChild(new Cell
+            var row = new Row();
+            foreach (var value in values)
             {
-                DataType = new EnumValue<CellValues>(CellValues.String),
-                CellValue = new CellValue(value)
-            });
-        }
+                row.AppendChild(new Cell
+                {
+                    DataType = new EnumValue<CellValues>(CellValues.InlineString),
+                    InlineString = new InlineString(new Text(value))
+                });
+            }
 
         return row;
     }
